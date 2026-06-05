@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TriangleAlert, X } from "./icons";
+import { useLanguage } from "@/lib/LanguageProvider";
 
 type Platform = "ios" | "android" | "mac" | "windows" | "linux" | "unknown";
 
@@ -50,6 +51,7 @@ const INSTRUCTIONS: Record<Platform, string[]> = {
 };
 
 export default function PermissionDeniedModal({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
   const [platform, setPlatform] = useState<Platform>("unknown");
   useEffect(() => setPlatform(detectPlatform()), []);
   const steps = INSTRUCTIONS[platform];
@@ -68,15 +70,15 @@ export default function PermissionDeniedModal({ onClose }: { onClose: () => void
           </div>
           <div className="flex-1">
             <h2 id="denied-title" className="font-display text-[18px] font-semibold text-[var(--color-text)]">
-              Location is blocked
+              {t("deniedTitle")}
             </h2>
             <p className="mt-1 text-[13px] text-[var(--color-muted)]">
-              Your browser is blocking location for this site. Browsers don&apos;t let pages re-ask — you&apos;ll need to enable it manually.
+              {t("deniedBody")}
             </p>
           </div>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t("closeDetails")}
             onClick={onClose}
             className="grid h-8 w-8 place-items-center rounded-full text-[var(--color-muted)] hover:bg-slate-100"
           >
@@ -94,7 +96,7 @@ export default function PermissionDeniedModal({ onClose }: { onClose: () => void
         </ol>
 
         <button type="button" onClick={onClose} className="btn-ghost mt-4 w-full">
-          Continue browsing without location
+          {t("continueWithout")}
         </button>
       </div>
     </div>

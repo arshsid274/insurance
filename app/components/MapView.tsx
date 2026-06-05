@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet.markercluster";
+import "maplibre-gl/dist/maplibre-gl.css";
+import maplibregl from "maplibre-gl";
+import "@maplibre/maplibre-gl-leaflet";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Provider, UserLocation } from "@/lib/types";
 import { TypeIcon, pinClass } from "./icons";
+import { useLanguage } from "@/lib/LanguageProvider";
+import { getVectorStyle, getRasterFallback, localeToMapLang } from "@/lib/tiles";
 
 type Props = {
   providers: (Provider & { distance?: number })[];
@@ -19,10 +24,6 @@ type Props = {
 function buildPinHtml(type: Provider["type"]): string {
   const svg = renderToStaticMarkup(<TypeIcon type={type} className="h-4 w-4" />);
   return `<div class="${pinClass(type)}">${svg}</div>`;
-}
-
-function buildUserDotHtml(): string {
-  return `<div class="user-dot"></div>`;
 }
 
 const ICON_CACHE = new Map<string, L.DivIcon>();
@@ -43,11 +44,37 @@ function getIcon(type: Provider["type"], selected: boolean): L.DivIcon {
 }
 
 const USER_ICON = L.divIcon({
-  html: buildUserDotHtml(),
+  html: '<div class="user-dot"></div>',
   className: "",
   iconSize: [18, 18],
   iconAnchor: [9, 9],
 });
+
+/**
+ * Rewrites every symbol layer's text-field to prefer `name:<lang>` and fall back
+ * through Latin transliteration and the default `name` field. Called on locale
+ * change. Idempotent.
+ */
+function applyMapLanguage(mlMap: maplibregl.Map, lang: string) {
+  if (!mlMap.isStyleLoaded()) return;
+  const layers = mlMap.getStyle().layers ?? [];
+  for (const layer of layers) {
+    if (layer.type !== "symbol") continue;
+    const layout = (layer as { layout?: Record<string, unknown> }).layout;
+    if (!layout || !("text-field" in layout)) continue;
+    try {
+      mlMap.setLayoutProperty(layer.id, "text-field", [
+        "coalesce",
+        ["get", `name:${lang}`],
+        ["get", "name:latin"],
+        ["get", "name_int"],
+        ["get", "name"],
+      ]);
+    } catch {
+      // Skip layers that don't accept this expression
+    }
+  }
+}
 
 export default function MapView({
   providers,
@@ -57,8 +84,11 @@ export default function MapView({
   selectedId,
   onSelect,
 }: Props) {
+  const { locale } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const vectorLayerRef = useRef<L.Layer | null>(null);
+  const mlMapRef = useRef<maplibregl.Map | null>(null);
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const markerById = useRef<Map<number, L.Marker>>(new Map());
@@ -74,17 +104,52 @@ export default function MapView({
     const map = L.map(containerRef.current, {
       center: [center.lat, center.lng],
       zoom,
+      minZoom: 2,
+      maxZoom: 19,
       zoomControl: true,
       attributionControl: true,
-      preferCanvas: false,
       fadeAnimation: !reduce,
       zoomAnimation: !reduce,
     });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+
+    // Try MapLibre vector layer first — supports runtime language switching.
+    let attachedVector = false;
+    const vec = getVectorStyle();
+    if (vec) {
+      try {
+        const gl = (L as unknown as {
+          maplibreGL: (opts: {
+            style: string | maplibregl.StyleSpecification;
+            attribution: string;
+          }) => L.Layer & { getMaplibreMap: () => maplibregl.Map };
+        }).maplibreGL({
+          style: vec.styleUrl,
+          attribution: vec.attribution,
+        });
+        gl.addTo(map);
+        const ml = gl.getMaplibreMap();
+        mlMapRef.current = ml;
+        vectorLayerRef.current = gl;
+        attachedVector = true;
+
+        const apply = () => applyMapLanguage(ml, localeToMapLang(locale));
+        // Fire when style + glyphs are ready
+        if (ml.isStyleLoaded()) apply();
+        else ml.once("style.load", apply);
+        ml.on("styledata", apply);
+      } catch (err) {
+        console.warn("[MapView] MapLibre init failed, falling back to OSM raster", err);
+      }
+    }
+
+    if (!attachedVector) {
+      const r = getRasterFallback();
+      L.tileLayer(r.url, {
+        maxZoom: r.maxZoom,
+        attribution: r.attribution,
+        subdomains: r.subdomains ?? "abc",
+      }).addTo(map);
+    }
 
     const cluster = L.markerClusterGroup({
       chunkedLoading: true,
@@ -98,15 +163,25 @@ export default function MapView({
     mapRef.current = map;
     clusterRef.current = cluster;
 
-    // Hard cleanup
     return () => {
       map.remove();
       mapRef.current = null;
       clusterRef.current = null;
+      vectorLayerRef.current = null;
+      mlMapRef.current = null;
       markerById.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Switch language on the running MapLibre instance
+  useEffect(() => {
+    const ml = mlMapRef.current;
+    if (!ml) return;
+    const lang = localeToMapLang(locale);
+    if (ml.isStyleLoaded()) applyMapLanguage(ml, lang);
+    else ml.once("style.load", () => applyMapLanguage(ml, lang));
+  }, [locale]);
 
   // Rebuild markers when filtered providers change
   useEffect(() => {
@@ -166,12 +241,9 @@ export default function MapView({
       const p = providers.find((x) => x.id === id);
       if (!p) continue;
       marker.setIcon(getIcon(p.type, id === selectedId));
-      if (id === selectedId) marker.setZIndexOffset(500);
-      else marker.setZIndexOffset(0);
+      marker.setZIndexOffset(id === selectedId ? 500 : 0);
     }
   }, [selectedId, providers]);
-
-  // Tile attribution control kept visible — required by OSM policy.
 
   return <div ref={containerRef} className="h-full w-full" aria-label="Provider map" />;
 }

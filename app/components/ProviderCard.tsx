@@ -6,6 +6,7 @@ import { haversineKm, formatDistance } from "@/lib/distance";
 import { buildNavigateUrl } from "@/lib/navigate";
 import { formatPhone, telHref } from "@/lib/phone";
 import { TypeIcon, Navigation, Phone, X } from "./icons";
+import { useLanguage } from "@/lib/LanguageProvider";
 
 export default function ProviderCard({
   provider,
@@ -16,12 +17,15 @@ export default function ProviderCard({
   userLocation: UserLocation | null;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const [navUrl, setNavUrl] = useState<string>(() => buildNavigateUrl(provider.lat, provider.lng, provider.name));
   useEffect(() => {
     setNavUrl(buildNavigateUrl(provider.lat, provider.lng, provider.name));
   }, [provider]);
 
-  const dist = userLocation ? formatDistance(haversineKm(userLocation, provider)) : null;
+  const dist = userLocation
+    ? formatDistance(haversineKm(userLocation, provider), t("metersAbbr"), t("kmAbbr"))
+    : null;
   const phoneHref = telHref(provider.phone);
   const phonePretty = formatPhone(provider.phone);
 
@@ -41,12 +45,12 @@ export default function ProviderCard({
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-[var(--color-muted)]">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-[var(--color-text)]">{provider.type}</span>
             <span>{provider.region || provider.country}</span>
-            {dist && <span>· {dist} away</span>}
+            {dist && <span>· {dist} {t("awaySuffix")}</span>}
           </p>
         </div>
         <button
           type="button"
-          aria-label="Close details"
+          aria-label={t("closeDetails")}
           onClick={onClose}
           className="grid h-8 w-8 place-items-center rounded-full text-[var(--color-muted)] hover:bg-slate-100"
         >
@@ -61,7 +65,7 @@ export default function ProviderCard({
       )}
 
       {provider.networks.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" aria-label="Insurance networks">
+        <div className="flex flex-wrap gap-1.5" aria-label={t("networksLabel")}>
           {provider.networks.map((n) => (
             <span
               key={n}
@@ -72,7 +76,7 @@ export default function ProviderCard({
           ))}
           {provider.hasDental && (
             <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700">
-              Dental service
+              {t("dentalService")}
             </span>
           )}
         </div>
@@ -84,13 +88,13 @@ export default function ProviderCard({
           target="_blank"
           rel="noopener"
           className="btn-cta flex-1"
-          aria-label={`Navigate to ${provider.name}`}
+          aria-label={t("navigateAria", { name: provider.name })}
         >
           <Navigation className="h-4 w-4" />
-          Navigate
+          {t("navigate")}
         </a>
         {phoneHref && (
-          <a href={phoneHref} className="btn-ghost flex-1" aria-label={`Call ${provider.name}`}>
+          <a href={phoneHref} className="btn-ghost flex-1" aria-label={t("callAria", { name: provider.name })}>
             <Phone className="h-4 w-4" />
             <span className="truncate">{phonePretty}</span>
           </a>

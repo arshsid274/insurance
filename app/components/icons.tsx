@@ -13,6 +13,8 @@ import {
   LocateFixed,
   TriangleAlert,
   ListFilter,
+  Globe,
+  Check,
 } from "lucide-react";
 import type { ProviderType } from "@/lib/types";
 
@@ -51,4 +53,4 @@ export function pinClass(type: ProviderType): string {
   }
 }
 
-export { MapPin, Search, Navigation, Phone, X, LocateFixed, TriangleAlert, ListFilter };
+export { MapPin, Search, Navigation, Phone, X, LocateFixed, TriangleAlert, ListFilter, Globe, Check };

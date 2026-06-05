@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Provider } from "@/lib/types";
 import { formatDistance } from "@/lib/distance";
 import { TypeIcon } from "./icons";
+import { useLanguage } from "@/lib/LanguageProvider";
 
 type ProviderWithDistance = Provider & { distance?: number };
 
@@ -20,6 +21,7 @@ export default function ProviderList({
   hasUserLocation: boolean;
   onResetFilters: () => void;
 }) {
+  const { t } = useLanguage();
   const listRef = useRef<HTMLUListElement>(null);
 
   // Scroll selected into view
@@ -34,13 +36,13 @@ export default function ProviderList({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="font-display text-base font-semibold text-[var(--color-text)]">
-          No matches found
+          {t("noResultsTitle")}
         </p>
         <p className="text-sm text-[var(--color-muted)]">
-          Try removing filters or clearing the search term.
+          {t("noResultsBody")}
         </p>
         <button type="button" className="btn-ghost !min-h-[40px]" onClick={onResetFilters}>
-          Reset filters
+          {t("resetFilters")}
         </button>
       </div>
     );
@@ -50,7 +52,7 @@ export default function ProviderList({
     <ul
       ref={listRef}
       role="listbox"
-      aria-label="Provider results"
+      aria-label={t("providerResults")}
       className="h-full overflow-y-auto"
       onKeyDown={(e) => {
         if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
@@ -90,14 +92,14 @@ export default function ProviderList({
                 <span className="truncate">{p.region || p.country}</span>
                 {p.hasDental && (
                   <span className="rounded bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700">
-                    Dental
+                    {t("dental")}
                   </span>
                 )}
               </span>
             </span>
             {hasUserLocation && p.distance !== undefined && (
               <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-[var(--color-text)]">
-                {formatDistance(p.distance)}
+                {formatDistance(p.distance, t("metersAbbr"), t("kmAbbr"))}
               </span>
             )}
           </button>

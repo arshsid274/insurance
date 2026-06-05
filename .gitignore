@@ -3,5 +3,6 @@ node_modules
 .DS_Store
 *.log
 next-env.d.ts
-public/providers.json
 .vercel
+.env.local
+data/verification-report.csv

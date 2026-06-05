@@ -18,8 +18,8 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
-export function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km)} km`;
+export function formatDistance(km: number, mUnit = "m", kmUnit = "km"): string {
+  if (km < 1) return `${Math.round(km * 1000)} ${mUnit}`;
+  if (km < 10) return `${km.toFixed(1)} ${kmUnit}`;
+  return `${Math.round(km)} ${kmUnit}`;
 }

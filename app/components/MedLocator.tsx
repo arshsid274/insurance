@@ -12,13 +12,15 @@ import ProviderCard from "./ProviderCard";
 import LocationPrompt from "./LocationPrompt";
 import PermissionDeniedModal from "./PermissionDeniedModal";
 import MobileBottomSheet from "./MobileBottomSheet";
+import LanguageSwitcher from "./LanguageSwitcher";
 import { LocateFixed, MapPin } from "./icons";
+import { useLanguage } from "@/lib/LanguageProvider";
 
 const MapView = dynamic(() => import("./MapView"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-[#e8f4f3]">
-      <p className="text-sm text-[var(--color-muted)]">Loading map…</p>
+    <div className="flex h-full w-full items-center justify-center bg-[#e8f4f3]" aria-busy="true">
+      <p className="text-sm text-[var(--color-muted)]">…</p>
     </div>
   ),
 });
@@ -37,7 +39,9 @@ export interface MedLocatorProps {
 }
 
 export default function MedLocator({ initialProviders }: MedLocatorProps) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
+  const [includeAddress, setIncludeAddress] = useState(false);
   const [activeTypes, setActiveTypes] = useState<Set<ProviderType>>(new Set(ALL_TYPES));
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -73,7 +77,9 @@ export default function MedLocator({ initialProviders }: MedLocatorProps) {
     for (const p of initialProviders) {
       if (!activeTypes.has(p.type)) continue;
       if (q) {
-        const hay = `${p.name} ${p.region} ${p.address} ${p.group ?? ""}`.toLowerCase();
+        const hay = includeAddress
+          ? `${p.name} ${p.region} ${p.address} ${p.group ?? ""}`.toLowerCase()
+          : `${p.name} ${p.region} ${p.group ?? ""}`.toLowerCase();
         if (!hay.includes(q)) continue;
       }
       const distance = userLocation ? haversineKm(userLocation, p) : undefined;
@@ -82,7 +88,7 @@ export default function MedLocator({ initialProviders }: MedLocatorProps) {
     if (userLocation) results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
     else results.sort((a, b) => a.name.localeCompare(b.name));
     return results;
-  }, [initialProviders, activeTypes, query, userLocation]);
+  }, [initialProviders, activeTypes, query, userLocation, includeAddress]);
 
   const selected = useMemo(
     () => (selectedId ? filtered.find((p) => p.id === selectedId) ?? null : null),
@@ -150,30 +156,44 @@ export default function MedLocator({ initialProviders }: MedLocatorProps) {
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-[var(--color-bg)]">
+      <a
+        href="#main"
+        className="absolute start-2 top-2 z-[10000] -translate-y-20 rounded-md bg-white px-3 py-2 text-sm font-medium text-[var(--color-primary-deep)] shadow focus:translate-y-0"
+      >
+        {t("skipToList")}
+      </a>
       {/* Top navbar */}
       <header className="absolute inset-x-3 top-3 z-[1500] flex items-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow-[0_4px_16px_rgba(15,23,42,0.08)] backdrop-blur md:inset-x-4 md:top-4 md:gap-3">
-        <div className="flex items-center gap-2 pl-1 pr-2">
+        <div className="flex items-center gap-2 ps-1 pe-2">
           <div className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--color-primary)] text-white">
             <MapPin className="h-5 w-5" aria-hidden />
           </div>
           <div className="hidden sm:block">
-            <p className="font-display text-base font-semibold leading-tight text-[var(--color-text)]">MedLocator</p>
-            <p className="text-[11px] leading-tight text-[var(--color-muted)]">{totalCount.toLocaleString()} providers</p>
+            <p className="font-display text-base font-semibold leading-tight text-[var(--color-text)]">{t("appName")}</p>
+            <p className="text-[11px] leading-tight text-[var(--color-muted)]">
+              {t("providersCount", { n: totalCount.toLocaleString() })}
+            </p>
           </div>
         </div>
         <div className="flex-1">
-          <SearchBar value={query} onChange={setQuery} />
+          <SearchBar
+            value={query}
+            onChange={setQuery}
+            includeAddress={includeAddress}
+            onToggleIncludeAddress={() => setIncludeAddress((v) => !v)}
+          />
         </div>
         <button
           type="button"
           onClick={handleRetry}
           className="btn-ghost !min-h-[40px] !rounded-xl !px-3"
-          aria-label="Use my location"
-          title={userLocation ? "Update my location" : "Use my location"}
+          aria-label={userLocation ? t("updateLocation") : t("useLocation")}
+          title={userLocation ? t("updateLocation") : t("useLocation")}
         >
           <LocateFixed className="h-4 w-4" aria-hidden />
-          <span className="hidden md:inline">{userLocation ? "Update location" : "Use location"}</span>
+          <span className="hidden md:inline">{userLocation ? t("updateLocation") : t("useLocation")}</span>
         </button>
+        <LanguageSwitcher />
       </header>
 
       {/* Map */}
